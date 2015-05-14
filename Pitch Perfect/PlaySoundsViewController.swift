@@ -13,6 +13,7 @@ class PlaySoundsViewController: UIViewController {
 
     var audioPlayer : AVAudioPlayer!
     var receivedAudio : RecordedAudio!
+    var audioPlayerNode : AVAudioPlayerNode!
     
     var audioEngine:AVAudioEngine!
     var audioFile:AVAudioFile!
@@ -20,12 +21,15 @@ class PlaySoundsViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        audioSetup()
+        
+    }
+    
+    func audioSetup() {
         audioPlayer = AVAudioPlayer(contentsOfURL: receivedAudio.filePathUrl, error: nil)
         audioPlayer.enableRate = true
-        
         audioEngine = AVAudioEngine()
         audioFile = AVAudioFile(forReading: receivedAudio.filePathUrl, error: nil)
-        
     }
 
     override func didReceiveMemoryWarning() {
@@ -33,25 +37,26 @@ class PlaySoundsViewController: UIViewController {
     }
     
     @IBAction func playSlowAudio(sender: UIButton) {
-        playAudio(0.5)
+        playAudioWithRate(0.5)
     }
 
     @IBAction func playFastAudio(sender: UIButton) {
-        playAudio(1.5)
+        playAudioWithRate(1.5)
     }
     
     @IBAction func playChipmunkAudio(sender: UIButton) {
-        playAudioWithPitch(1000)
+        playAudioModified("pitch", Amount: 1000)
     }
     
     @IBAction func playDarthVaderAudio(sender: UIButton) {
-        playAudioWithPitch(-1000)
+        playAudioModified("pitch", Amount: -1000)
         
     }
     
     @IBAction func playReverbAudio(sender: UIButton) {
-        playAudioWithReverb(80)
+        playAudioModified("reverb", Amount: 80)
     }
+    
     // Reset where in time our audio is playing and stop the player and engine
     @IBAction func stopAudio(sender: UIButton) {
         audioPlayer.currentTime = 0.0
@@ -59,58 +64,46 @@ class PlaySoundsViewController: UIViewController {
     }
     
     // This function plays the recorded audio with a speed based on the passed in rate (chipMunk Darth Vader)
-    func playAudio(playRate: float_t) {
+    func playAudioWithRate(playRate: float_t) {
         stopAllAudio()
         audioPlayer.rate = playRate
         audioPlayer.currentTime = 0.0
         audioPlayer.play()
     }
     
-    // This function plays the recorded audio based on the pitch amount passed in
-    // We require an AVAudioEngine, AVAudioPlayerNode, and AVAudioUnitTimePitch instance all wired up to accomplish this
-    func playAudioWithPitch(pitchAmount: float_t) {
+    func playAudioModified(Type: String, Amount: float_t) {
         stopAllAudio()
         
-        var audioPlayerNode = AVAudioPlayerNode()
+        audioPlayerNode = AVAudioPlayerNode()
         audioEngine.attachNode(audioPlayerNode)
         
-        var audioTimePitch = AVAudioUnitTimePitch()
-        audioTimePitch.pitch = pitchAmount
-        audioEngine.attachNode(audioTimePitch)
-        
-        audioEngine.connect(audioPlayerNode, to: audioTimePitch, format: nil)
-        audioEngine.connect(audioTimePitch, to: audioEngine.outputNode, format: nil)
-        
-        audioPlayerNode.scheduleFile(audioFile, atTime: nil, completionHandler: nil)
-        
-        audioEngine.startAndReturnError(nil)
-        
-        audioPlayerNode.play()
-
-    }
-    // Same as playAudioWithPitch but I switch out the AVAudioUnitTimePitch with AVAudioUnitReverb
-    @IBAction func playAudioWithReverb(reverbAmount: float_t) {
-        stopAllAudio()
-        
-        var audioPlayerNode = AVAudioPlayerNode()
-        audioEngine.attachNode(audioPlayerNode)
-        
-        var audioReverb = AVAudioUnitReverb()
-        audioReverb.wetDryMix = reverbAmount
-        audioEngine.attachNode(audioReverb)
-        
-        audioEngine.connect(audioPlayerNode, to: audioReverb, format: nil)
-        audioEngine.connect(audioReverb, to: audioEngine.outputNode, format: nil)
-        
-        audioPlayerNode.scheduleFile(audioFile, atTime: nil, completionHandler: nil)
-        
-        audioEngine.startAndReturnError(nil)
-        
-        audioPlayerNode.play()
+        switch Type {
+            case "reverb" :
+                var audioReverb = AVAudioUnitReverb()
+                audioReverb.wetDryMix = Amount
+                audioEngine.attachNode(audioReverb)
+            
+                audioEngine.connect(audioPlayerNode, to: audioReverb, format: nil)
+                audioEngine.connect(audioReverb, to: audioEngine.outputNode, format: nil)
+            case "pitch" :
+                var audioTimePitch = AVAudioUnitTimePitch()
+                audioTimePitch.pitch = Amount
+                audioEngine.attachNode(audioTimePitch)
+                
+                audioEngine.connect(audioPlayerNode, to: audioTimePitch, format: nil)
+                audioEngine.connect(audioTimePitch, to: audioEngine.outputNode, format: nil)
+            default: println("No type was passed in")
+        }
+        audioPlay(audioFile)
         
     }
     
-    // Rather than keep calling all 3 lines in each play audio call
+    func audioPlay(audiofile: AVAudioFile) {
+        audioPlayerNode.scheduleFile(audioFile, atTime: nil, completionHandler: nil)
+        audioEngine.startAndReturnError(nil)
+        audioPlayerNode.play()
+    }
+    
     func stopAllAudio() {
         audioPlayer.stop()
         audioEngine.stop()
